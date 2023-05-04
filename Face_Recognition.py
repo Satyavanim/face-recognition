@@ -29,10 +29,6 @@ def send_email(frame):
     sender_email = 'sender12@gmail.com'
     sender_password = ''  #give your App Password ,don't give your google Account password
     Receiver_email = 'Receiver@gmail.com'
-    subject="No face detected"
-    body = """
-    there is no faces infront of camera
-    """
                 
     print("Sending email......")
     em = EmailMessage()            
@@ -64,7 +60,11 @@ while True:
         faces = face_cascade.detectMultiScale(gray,1.3,5)
         if len(faces) == 0:
             if time.time() - start_time > 30:
-                send_email(frame)
+                subject="faces not detected"
+                body = """
+                there is no employee infront of camera
+                """
+                send_email(frame,subject,body)
                 start_time = time.time()
                 print("No faces detected")
                 
@@ -92,7 +92,11 @@ while True:
                     cv2.rectangle(frame, (x, y), (x+w,y+h),
                         (0, 0, 255), 2)
                     if elapsed_time >= 30:
-                        send_email(frame)
+                        subject="fake face detected"
+                        body = """
+                        Employee using the fake images like phone images ect
+                        """
+                        send_email(frame,subject,body)
                         start_time = time.time()
                         print("fake image detected")
                 else:
