@@ -8,27 +8,74 @@ import ssl
 from PIL import Image
 from email.message import EmailMessage
 import time
+import io
+import sqlite3
+import base64
+from datetime import datetime
+from datetime import date
+import face_recognition
 
-root_dir = os.getcwd()
-# Load Face Detection Model
-face_cascade = cv2.CascadeClassifier(r"C:\Users\Username\Desktop/haarcascade_frontalface_default.xml")
+
+images = []
+empimg=[]
+classnames=[]
+mydb=sqlite3.connect(os.path.expanduser('~') + r"/Desktop/faces.db")
+mycursor=mydb.cursor()
+mycursor.execute("select username,imagestring1,imagestring2 from facerecognition")
+a=mycursor.fetchall()
+#print(a)
+for i in range(len(a)):
+    classnames.append(a[i][0])
+    empimg.append(a[i][1])
+    empimg.append(a[i][2])
+    b=base64.b64decode(a[i][1])
+    im=Image.open(io.BytesIO(b))
+    images.append(im)
+    b=base64.b64decode(a[i][2])
+    im=Image.open(io.BytesIO(b))
+    images.append(im)
+mydb.commit()
+mydb.close()
+print(images)
+#Function for find the encoded data of the input image
+def findEncodings(images):
+        encodeList = []
+
+   
+        for img in images:
+            img = cv2.cvtColor(np.array(img), cv2.COLOR_BGR2RGB)
+            encode = face_recognition.face_encodings(img)[0]
+            encodeList.append(encode)
+        return encodeList
+
+
+def markAttendance(name):   #save the name , current date and time in the text file
+        with open('Attendance.txt', 'a+') as f:
+                    now = datetime.now()
+                    dtString = now.strftime('%H:%M:%S')
+                    today=date.today()  # to display current date
+                    day = today.strftime("%B %d, %Y")
+                    f.writelines(f'\n{name},{dtString},{day}')
+
+#find encodings of training images
+encodeListKnown = findEncodings(images)
+#print('Encoding Complete')
+
+face_cascade = cv2.CascadeClassifier(os.path.expanduser('~') + r"/Desktop/haarcascade_frontalface_default.xml")
 # Load Anti-Spoofing Model graph
-json_file = open(r'C:\Users\Username\Desktop/antispoofing_model.json','r')
+json_file = open(os.path.expanduser('~') + r'/Desktop/antispoofing_model.json','r')
 loaded_model_json = json_file.read()
 json_file.close()
 model = model_from_json(loaded_model_json)
 # load antispoofing model weights 
-model.load_weights(r'C:\Users\Username\Desktop/antispoofing_model.h5')
+model.load_weights(os.path.expanduser('~') + r'/Desktop/antispoofing_model.h5')
 print("Model loaded from disk")
-# video.open("http://192.168.1.101:8080/video")
-# vs = VideoStream(src=0).start()
-# time.sleep(2.0)
 start_time = time.time()
-def send_email(frame):
+def send_email(frame,subject,body):
     # Create the email message
-    sender_email = 'sender12@gmail.com'
-    sender_password = ''  #give your App Password ,don't give your google Account password
-    Receiver_email = 'Receiver@gmail.com'
+    sender_email = 'sender@gmail.com'
+    sender_password = '' #give your App Password ,don't give your google Account password
+    Receiver_email = 'receiver@gmail.com'
                 
     print("Sending email......")
     em = EmailMessage()            
@@ -52,14 +99,19 @@ def send_email(frame):
         print("mail sent successfully")
 
 
-video = cv2.VideoCapture(0)
+# Initialize video capture device
+cap = cv2.VideoCapture(0)
+
+# Loop through video frames
 while True:
-    try:
-        ret,frame = video.read()
-        gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray,1.3,5)
-        if len(faces) == 0:
-            if time.time() - start_time > 30:
+    # Read a frame from the video stream
+    ret, frame = cap.read()
+    
+    # Convert the frame to RGB color space
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    faces = face_cascade.detectMultiScale(rgb_frame,1.3,5)
+    if len(faces)==0:
+        if time.time() - start_time > 30:
                 subject="faces not detected"
                 body = """
                 there is no employee infront of camera
@@ -67,10 +119,9 @@ while True:
                 send_email(frame,subject,body)
                 start_time = time.time()
                 print("No faces detected")
-                
-        else:
-            for (x,y,w,h) in faces:
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+    else:
+        for (x,y,w,h) in faces:
                 face = frame[y-5:y+h+5,x-5:x+w+5]
                 resized_face = cv2.resize(face,(160,160))
                 resized_face = resized_face.astype("float") / 255.0
@@ -81,7 +132,7 @@ while True:
                 preds = model.predict(resized_face)[0]
                 #print(preds)
                 elapsed_time = time.time() - start_time
-                face_img_gray= gray[y:y+h, x:x+w]
+                face_img_gray= rgb_frame[y:y+h, x:x+w]
                 face_image = frame[y:y+h,x:x+w]
                 laplacian_var = cv2.Laplacian(face_img_gray, cv2.CV_64F).var()
 
@@ -96,27 +147,63 @@ while True:
                         body = """
                         Employee using the fake images like phone images ect
                         """
-                        send_email(frame,subject,body)
+                        send_email(frame,subject,body
+                                   )
                         start_time = time.time()
                         print("fake image detected")
                 else:
-                    label = 'real'
-                    cv2.putText(frame, label, (x,y - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-                    cv2.rectangle(frame, (x, y), (x+w,y+h),
-                    (0, 255, 0), 2)
-                    if elapsed_time >= 30 and laplacian_var > 140:
-                        filename = f"face_detection_{time.strftime('%Y%m%d-%H%M%S')}.jpg"
-                        cv2.imwrite(filename,face_image )
-                        start_time = time.time()
-                        print("succussfully image captured")
+    
+                    # Detect faces in the frame
+                    face_locations = face_recognition.face_locations(rgb_frame)
                     
-        #cv2.imshow('frame', frame)
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            break
-    except Exception as e:
-        pass
-video.release()        
+                    # Encode faces in the frame
+                    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+                    
+                    # Loop through each face in the frame
+                    for face_encoding, face_location in zip(face_encodings, face_locations):
+                        # Compare the face with known faces in the call database
+                        matches = face_recognition.compare_faces(encodeListKnown, face_encoding)
+                        
+                        # Find the index of the matched face
+                        if True in matches:
+                            match_index = matches.index(True) 
+                        
+                            # Draw a rectangle around the face in the frame
+                            top, right, bottom, left = face_location
+                            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+                            
+                            # Label the face in the frame with the matched name
+                            name = classnames[match_index]
+                            cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                            markAttendance(name)
+                            if elapsed_time >= 30 and laplacian_var > 140:
+                                filename = f"face_detection_{time.strftime('%Y%m%d-%H%M%S')}.jpg"
+                                cv2.imwrite(filename,face_image )
+                                start_time = time.time()
+                                print("succussfully image captured")
+                        else:
+                            name='unknown'
+                            top, right, bottom, left = face_location
+                            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+                            cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                            if elapsed_time >= 15:
+                                subject="New face detected"
+                                body = """
+                                Unknown person is sit in front of camera
+                                """
+                                send_email(frame,subject,body)
+                                start_time = time.time()
+                                print("New face detected")
+                            
+    
+    # Show the frame with detected faces
+    cv2.imshow('Face Detection', frame)
+    
+    # Exit the loop if 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the video capture device and destroy all windows
+cap.release()
 cv2.destroyAllWindows()
 
