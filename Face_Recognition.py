@@ -85,8 +85,8 @@ def send_email(frame,subject,body):
     em.set_content(body)
 
     context = ssl.create_default_context()
-    imge = Image.fromarray(frame)
-    imge.save('detected_face.jpg')
+    filename = f"detected_face.jpg"
+    cv2.imwrite(filename,frame )
             
     # attach the saved image to the email message
     with open('detected_face.jpg', 'rb') as f:
