@@ -110,8 +110,7 @@ while True:
     # Convert the frame to RGB color space
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     faces = face_cascade.detectMultiScale(rgb_frame,1.3,5)
-    if len(faces)==0:
-        if time.time() - start_time > 30:
+    if len(faces)==0 and time.time() - start_time > 30:
                 subject="faces not detected"
                 body = """
                 there is no employee infront of camera
@@ -150,7 +149,7 @@ while True:
                         send_email(frame,subject,body
                                    )
                         start_time = time.time()
-                        print("fake image detected")
+                        print("fake face detected")
                 else:
     
                     # Detect faces in the frame
@@ -188,13 +187,13 @@ while True:
                             cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
                             cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                             if elapsed_time >= 15:
-                                subject="New face detected"
+                                subject="Unknown face detected"
                                 body = """
                                 Unknown person is sit in front of camera
                                 """
                                 send_email(frame,subject,body)
                                 start_time = time.time()
-                                print("New face detected")
+                                print("Unknown face detected")
                             
     
     # Show the frame with detected faces
