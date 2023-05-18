@@ -175,10 +175,11 @@ while True:
                             # Label the face in the frame with the matched name
                             name = classnames[match_index]
                             cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            markAttendance(name)
+                            
                             if elapsed_time >= 30 and laplacian_var > 140:
                                 filename = f"face_detection_{time.strftime('%Y%m%d-%H%M%S')}.jpg"
                                 cv2.imwrite(filename,face_image )
+                                markAttendance(name)
                                 start_time = time.time()
                                 print("succussfully image captured")
                         else:
